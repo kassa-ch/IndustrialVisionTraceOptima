@@ -305,21 +305,40 @@ def generate_column_base_as() -> List[float]:
 
 def assign_snake_numbers(all_coils: List[Dict], num_columns: int) -> List[Dict]:
     """
-    从左下角开始按列 S 形编号
-    奇数列：B 从小到大
-    偶数列：B 从大到小
-    同一位置附近：下层优先于上层
+    编号规则：
+    1. 先给下层钢卷按列S形编号
+       - 奇数列：B从小到大（下 -> 上）
+       - 偶数列：B从大到小（上 -> 下）
+    2. 再给上层钢卷按列S形编号
+       - 仍按同样的列S形顺序
+    3. 上层起始编号接下层末尾
     """
-    grouped = {c: [] for c in range(1, num_columns + 1)}
-    for coil in all_coils:
-        grouped[coil["column_id"]].append(coil)
+    lower_grouped = {c: [] for c in range(1, num_columns + 1)}
+    upper_grouped = {c: [] for c in range(1, num_columns + 1)}
 
-    for c in grouped:
-        grouped[c].sort(key=lambda item: (item["b_bottom"], item["layer"]))
+    for coil in all_coils:
+        if coil["layer"] == 1:
+            lower_grouped[coil["column_id"]].append(coil)
+        elif coil["layer"] == 2:
+            upper_grouped[coil["column_id"]].append(coil)
+
+    # 各列内部先按B方向从小到大排
+    for c in range(1, num_columns + 1):
+        lower_grouped[c].sort(key=lambda item: item["b_bottom"])
+        upper_grouped[c].sort(key=lambda item: item["b_bottom"])
 
     num_id = 1
+
+    # 第一阶段：下层 S 形编号
     for c in range(1, num_columns + 1):
-        ordered = grouped[c] if c % 2 == 1 else list(reversed(grouped[c]))
+        ordered = lower_grouped[c] if c % 2 == 1 else list(reversed(lower_grouped[c]))
+        for coil in ordered:
+            coil["num钢卷"] = num_id
+            num_id += 1
+
+    # 第二阶段：上层 S 形编号，下层末尾接着编
+    for c in range(1, num_columns + 1):
+        ordered = upper_grouped[c] if c % 2 == 1 else list(reversed(upper_grouped[c]))
         for coil in ordered:
             coil["num钢卷"] = num_id
             num_id += 1
